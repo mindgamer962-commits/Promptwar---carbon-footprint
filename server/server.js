@@ -826,9 +826,19 @@ app.get('/api/leaderboard', async (req, res) => {
   }
 });
 
-// Health check
+// Health check and environment verification (for diagnostics)
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'healthy', timestamp: new Date() });
+  const envKeys = Object.keys(process.env).filter(key => {
+    // Return only non-sensitive key names to preserve security
+    return key.includes('KEY') || key.includes('URL') || key.includes('PORT') || key.includes('DATABASE') || key.includes('JWT');
+  });
+  res.json({ 
+    status: 'healthy', 
+    timestamp: new Date(),
+    vercelEnv: !!process.env.VERCEL,
+    detectedEnvKeys: envKeys,
+    openRouterKeyConfigured: !!process.env.OPENROUTER_API_KEY
+  });
 });
 
 // Start Express Server only when running locally (not on Vercel)
