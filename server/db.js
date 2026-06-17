@@ -34,7 +34,11 @@ if (isPgConfigured) {
 }
 
 if (dbType === 'sqlite') {
-  const dbPath = path.resolve('carboniq.db');
+  // In Vercel serverless containers, the root filesystem is read-only.
+  // We use '/tmp' for the database file to allow database creation and updates.
+  const dbPath = process.env.VERCEL 
+    ? path.join('/tmp', 'carboniq.db') 
+    : path.resolve('carboniq.db');
   console.log(`🔌 Using SQLite Database at: ${dbPath}`);
   sqliteDb = new sqlite3.Database(dbPath);
 }
