@@ -779,7 +779,11 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'healthy', timestamp: new Date() });
 });
 
-// Start Express Server
-app.listen(PORT, () => {
-  console.log(`🚀 CarbonIQ Backend running on port ${PORT}`);
-});
+// Start Express Server only when running locally (not on Vercel)
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`🚀 CarbonIQ Backend running on port ${PORT}`);
+  });
+}
+
+export default app;
