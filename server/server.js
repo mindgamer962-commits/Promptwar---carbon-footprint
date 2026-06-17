@@ -7,6 +7,27 @@ import { query, initDatabase } from './db.js';
 
 dotenv.config();
 
+// Database Lazy Initialization Setup
+let dbInitialized = false;
+let dbInitializationPromise = null;
+
+async function ensureDbInitialized() {
+  if (dbInitialized) return;
+  if (!dbInitializationPromise) {
+    dbInitializationPromise = initDatabase()
+      .then(() => {
+        dbInitialized = true;
+        console.log('✅ Database initialized dynamically on demand.');
+      })
+      .catch((err) => {
+        dbInitializationPromise = null; // retry on next request
+        console.error('❌ Dynamic database initialization failed:', err);
+        throw err;
+      });
+  }
+  return dbInitializationPromise;
+}
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'carboniq_super_secret_jwt_key_2026';
@@ -21,6 +42,16 @@ app.use((req, res, next) => {
   res.setHeader('X-XSS-Protection', '1; mode=block');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   next();
+});
+
+// Lazy Database Initialization Middleware
+app.use(async (req, res, next) => {
+  try {
+    await ensureDbInitialized();
+    next();
+  } catch (err) {
+    res.status(500).json({ error: 'Database initialization failed: ' + err.message });
+  }
 });
 
 // Simple In-Memory Rate Limiter (Brute-force shield)
@@ -95,8 +126,7 @@ function validateLogin(req, res, next) {
   next();
 }
 
-// Init database
-await initDatabase();
+// Database initialized lazily via middleware
 
 // Middleware: Authenticate Token
 function authenticateToken(req, res, next) {
@@ -393,51 +423,68 @@ Breakdown:
 
     // 2. OpenRouter integration vs mock engine
     const activeApiKey = process.env.OPENROUTER_API_KEY || openRouterKey;
-    const forceMock = mockMode && !process.env.OPENROUTER_API_KEY;
 
-    if (!forceMock && activeApiKey) {
-      try {
-        const selectedModel = model || "openrouter/free";
-        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${activeApiKey}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            model: selectedModel,
-            messages: [
-              {
-                role: "system",
-                content: `You are CarbonIQ's AI Climate Coach. You are an expert climate-tech advisor, coach, and analytical scientist. Keep responses premium, highly engaging, conversational, yet backed by data.
+    if (mockMode) {
+      // Execute local mock response
+      return runMockCoach(message, twinResult, res);
+    }
+
+    if (!activeApiKey) {
+      return res.status(400).json({ 
+        error: "OpenRouter API key is not configured. Please add OPENROUTER_API_KEY as an environment variable or set it in the settings panel." 
+      });
+    }
+
+    try {
+      const selectedModel = model || "openrouter/free";
+      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${activeApiKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "https://carboniq.vercel.app",
+          "X-Title": "CarbonIQ AI"
+        },
+        body: JSON.stringify({
+          model: selectedModel,
+          messages: [
+            {
+              role: "system",
+              content: `You are CarbonIQ's AI Climate Coach. You are an expert climate-tech advisor, coach, and analytical scientist. Keep responses premium, highly engaging, conversational, yet backed by data.
 Your user's digital carbon twin context is:
 ${twinContext}
 Provide clear recommendations with estimated monthly/yearly CO2 reductions. Avoid simple pleasantries, provide specific figures.`
-              },
-              ...history.slice(-6), // Send last 6 messages
-              { role: "user", content: message }
-            ]
-          })
-        });
+            },
+            ...history.slice(-6).map(h => ({ role: h.role, content: h.content })),
+            { role: "user", content: message }
+          ]
+        })
+      });
 
-        const data = await response.json();
-        if (data.choices && data.choices[0]) {
-          return res.json({ response: data.choices[0].message.content });
-        } else {
-          throw new Error(data.error?.message || "Invalid OpenRouter response");
-        }
-      } catch (err) {
-        console.error("OpenRouter API failed, falling back to mock coach:", err.message);
-        // Fall back to mock response but add a warning prefix
+      const data = await response.json();
+      if (response.ok && data.choices && data.choices[0]) {
+        return res.json({ response: data.choices[0].message.content });
+      } else {
+        const errMsg = data.error?.message || data.error || JSON.stringify(data) || "Unknown OpenRouter error";
+        return res.status(response.status || 500).json({ error: `OpenRouter API error: ${errMsg}` });
       }
+    } catch (err) {
+      console.error("OpenRouter API exception:", err);
+      return res.status(500).json({ error: `Failed to connect to OpenRouter: ${err.message}` });
     }
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server chat error' });
+  }
+});
 
-    // 3. Mock AI Coaching Engine (Analytical & Personalized)
-    const lowerMsg = message.toLowerCase();
-    let reply = "";
+// Helper for Mock Coach logic
+function runMockCoach(message, twinResult, res) {
+  const lowerMsg = message.toLowerCase();
+  let reply = "";
 
-    if (lowerMsg.includes('hello') || lowerMsg.includes('hi') || lowerMsg.includes('help')) {
-      reply = `Hello! I am your CarbonIQ Climate Coach. Looking at your Digital Carbon Twin, your current footprint is estimated at approximately ${twinResult.rows[0]?.total_footprint || 450} kg CO₂ per month. 
+  if (lowerMsg.includes('hello') || lowerMsg.includes('hi') || lowerMsg.includes('help')) {
+    reply = `Hello! I am your CarbonIQ Climate Coach. Looking at your Digital Carbon Twin, your current footprint is estimated at approximately ${twinResult.rows[0]?.total_footprint || 450} kg CO₂ per month. 
 
 I can help you:
 1. Explain the scientific math behind your emission numbers.
@@ -445,47 +492,43 @@ I can help you:
 3. Test hypothetical scenarios (e.g. "What if I install solar panels?").
 
 What area of your lifestyle would you like to audit first?`;
-    } else if (lowerMsg.includes('car') || lowerMsg.includes('commute') || lowerMsg.includes('transport') || lowerMsg.includes('drive')) {
-      const trans = twinResult.rows[0]?.transport_emissions || 150;
-      reply = `Transportation accounts for approximately **${Math.round(trans / (twinResult.rows[0]?.total_footprint || 450) * 100)}%** of your footprint (${trans} kg CO₂/month). 
+  } else if (lowerMsg.includes('car') || lowerMsg.includes('commute') || lowerMsg.includes('transport') || lowerMsg.includes('drive')) {
+    const trans = twinResult.rows[0]?.transport_emissions || 150;
+    reply = `Transportation accounts for approximately **${Math.round(trans / (twinResult.rows[0]?.total_footprint || 450) * 100)}%** of your footprint (${trans} kg CO₂/month). 
 
 Here is your optimization blueprint:
 * **Twice-Weekly Public Transport**: Switching your commute to light rail or electric bus just two days a week reduces emissions by ~**280 kg CO₂ annually**. (Difficulty: Low)
 * **Electric Vehicle Transition**: Swapping a gas sedan for a typical EV drops your monthly transit footprint from ${trans} kg to roughly ${Math.round(trans * 0.3)} kg CO₂. (Difficulty: High, Impact: Very High)
 
 Would you like to log an EV purchase or public transit switch in your Simulator?`;
-    } else if (lowerMsg.includes('eat') || lowerMsg.includes('diet') || lowerMsg.includes('food') || lowerMsg.includes('meat')) {
-      const food = twinResult.rows[0]?.food_emissions || 120;
-      reply = `Your dietary carbon output is ${food} kg CO₂/month. Agriculture and supply-chain logistics represent a massive percentage of individual emissions.
+  } else if (lowerMsg.includes('eat') || lowerMsg.includes('diet') || lowerMsg.includes('food') || lowerMsg.includes('meat')) {
+    const food = twinResult.rows[0]?.food_emissions || 120;
+    reply = `Your dietary carbon output is ${food} kg CO₂/month. Agriculture and supply-chain logistics represent a massive percentage of individual emissions.
 
 My recommended actions:
 * **Meat-Free Weekdays**: By eating plant-based meals from Monday to Friday, you will reduce food emissions by approximately **35%**, resulting in **${Math.round(food * 12 * 0.35)} kg CO₂ saved annually**. (Difficulty: Medium)
 * **Zero Waste Habit**: Food waste decaying in landfills produces methane (28x more potent than CO₂). Composting and planning meals can save **80 kg CO₂/year**. (Difficulty: Low)
 
 Would you like me to add a "Meat-Free Day" mission to your profile?`;
-    } else if (lowerMsg.includes('solar') || lowerMsg.includes('electricity') || lowerMsg.includes('energy') || lowerMsg.includes('ac')) {
-      const energy = twinResult.rows[0]?.energy_emissions || 100;
-      reply = `Your residential energy emissions sit at ${energy} kg CO₂/month. 
+  } else if (lowerMsg.includes('solar') || lowerMsg.includes('electricity') || lowerMsg.includes('energy') || lowerMsg.includes('ac')) {
+    const energy = twinResult.rows[0]?.energy_emissions || 100;
+    reply = `Your residential energy emissions sit at ${energy} kg CO₂/month. 
 
 Immediate reduction pathways:
 * **Solar Installation**: Powering your household via rooftop solar reduces utility grid emissions to zero, cutting **${energy * 12} kg CO₂ annually**. (Difficulty: High, Cost Savings: High)
 * **Smart Thermostat**: Lowering AC usage or adjusting heating by just 1.5°C reduces electricity consumption by 10%, cutting roughly **${Math.round(energy * 0.1 * 12)} kg CO₂/year**. (Difficulty: Ultra-low)
 
 I have updated your Impact Simulator with these benchmarks.`;
-    } else {
-      reply = `Based on your query and Carbon Twin profile, I recommend focusing on your largest emissions category: **${twinResult.rows[0] ? 'Transportation' : 'Energy'}**. 
+  } else {
+    reply = `Based on your query and Carbon Twin profile, I recommend focusing on your largest emissions category: **${twinResult.rows[0] ? 'Transportation' : 'Energy'}**. 
 
 Did you know that small adjustments in household thermostatic values and weekly diet types hold a compounding reduction impact of over **1.2 tonnes of CO₂ per year**?
 
 Tell me more about your daily habits so we can fine-tune your Twin.`;
-    }
-
-    res.json({ response: reply });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server chat error' });
   }
-});
+
+  return res.json({ response: reply });
+}
 
 // Emissions Logging & Receipts
 app.post('/api/receipt/upload', authenticateToken, async (req, res) => {
@@ -493,14 +536,22 @@ app.post('/api/receipt/upload', authenticateToken, async (req, res) => {
     const { receiptData, imageBase64 } = req.body;
     let parsedData = null;
 
-    if (imageBase64 && process.env.OPENROUTER_API_KEY) {
+    if (imageBase64) {
+      if (!process.env.OPENROUTER_API_KEY) {
+        return res.status(400).json({ 
+          error: "OpenRouter API key is not configured on the server. Image-based receipt scanning requires the server-side OPENROUTER_API_KEY variable." 
+        });
+      }
+
       try {
         console.log('📷 AI Vision scanner active. Processing image payload...');
         const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
           method: "POST",
           headers: {
             "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://carboniq.vercel.app",
+            "X-Title": "CarbonIQ AI"
           },
           body: JSON.stringify({
             model: "openrouter/free",
@@ -525,18 +576,19 @@ app.post('/api/receipt/upload', authenticateToken, async (req, res) => {
         });
 
         const data = await response.json();
-        if (data.choices && data.choices[0]) {
+        if (response.ok && data.choices && data.choices[0]) {
           const text = data.choices[0].message.content.trim();
           // Clean JSON from any markdown wrappers
           const jsonText = text.replace(/```json/g, '').replace(/```/g, '').trim();
           parsedData = JSON.parse(jsonText);
           console.log('✅ AI Vision extraction success:', parsedData);
         } else {
-          throw new Error('Invalid OpenRouter vision output');
+          const errMsg = data.error?.message || data.error || "Invalid OpenRouter response";
+          return res.status(response.status || 500).json({ error: `AI Receipt Scanner error: ${errMsg}` });
         }
       } catch (err) {
-        console.error('⚠️ OpenRouter Vision failed, using metadata matching. Detail:', err);
-        parsedData = { category: 'shopping', amount: 50.0, itemDescription: 'Local Retailer (Vision Fallback)' };
+        console.error('⚠️ OpenRouter Vision failed:', err);
+        return res.status(500).json({ error: `AI Vision parsing failed: ${err.message}` });
       }
     } else {
       parsedData = receiptData;
