@@ -17,10 +17,6 @@ export default function CommunityChallenges({ token, currentUserUsername }: Comm
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    fetchCommunityData();
-  }, []);
-
   const fetchCommunityData = async () => {
     setLoading(true);
     setError('');
@@ -51,6 +47,10 @@ export default function CommunityChallenges({ token, currentUserUsername }: Comm
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchCommunityData();
+  }, []);
 
   const joinChallenge = async (challengeId: number) => {
     try {

@@ -31,10 +31,6 @@ export default function Dashboard({ token, user, onLogout }: DashboardProps) {
   const [userPoints, setUserPoints] = useState(user.points);
   const [userScore, setUserScore] = useState(user.carbon_score);
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, [activeView]);
-
   const fetchDashboardData = async () => {
     try {
       const [twinRes, logsRes, meRes] = await Promise.all([
@@ -62,6 +58,10 @@ export default function Dashboard({ token, user, onLogout }: DashboardProps) {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, [activeView]);
 
   if (loading) {
     return (
@@ -138,8 +138,10 @@ export default function Dashboard({ token, user, onLogout }: DashboardProps) {
             {sidebarItems.map(item => (
               <button
                 key={item.id}
+                id={`tab-${item.id}`}
                 role="tab"
                 aria-selected={activeView === item.id}
+                aria-controls={`panel-${item.id}`}
                 onClick={() => setActiveView(item.id as any)}
                 className={`w-full flex items-center gap-3 cursor-pointer px-4 py-3 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all ${
                   activeView === item.id 
@@ -209,6 +211,9 @@ export default function Dashboard({ token, user, onLogout }: DashboardProps) {
         <AnimatePresence mode="wait">
           <motion.div
             key={activeView}
+            id={`panel-${activeView}`}
+            role="tabpanel"
+            aria-labelledby={`tab-${activeView}`}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}

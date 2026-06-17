@@ -1,0 +1,13 @@
+{
+  "name": "carboniq-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Monorepo root for CarbonIQ AI",
+  "scripts": {
+    "postinstall": "npm install --prefix client && npm install --prefix server",
+    "test": "npm test --prefix server && npm run test --prefix client",
+    "test:server": "npm test --prefix server",
+    "test:client": "npm run test --prefix client",
+    "build": "npm run build --prefix client"
+  }
+}

@@ -12,14 +12,6 @@ export default function App() {
   const [showAuth, setShowAuth] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (token) {
-      validateToken();
-    } else {
-      setLoading(false);
-    }
-  }, [token]);
-
   const validateToken = async () => {
     try {
       const res = await fetch('/api/auth/me', {
@@ -49,6 +41,14 @@ export default function App() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (token) {
+      validateToken();
+    } else {
+      setLoading(false);
+    }
+  }, [token]);
 
   const handleAuthSuccess = (newToken: string, userData: User) => {
     setToken(newToken);

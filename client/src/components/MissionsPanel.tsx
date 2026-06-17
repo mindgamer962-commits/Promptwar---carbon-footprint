@@ -13,10 +13,6 @@ export default function MissionsPanel({ token, onMissionCompleted }: MissionsPan
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    fetchMissions();
-  }, []);
-
   const fetchMissions = async () => {
     setLoading(true);
     try {
@@ -32,6 +28,10 @@ export default function MissionsPanel({ token, onMissionCompleted }: MissionsPan
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchMissions();
+  }, []);
 
   const completeMission = async (missionId: number) => {
     try {
