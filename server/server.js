@@ -131,6 +131,108 @@ function validateLogin(req, res, next) {
   next();
 }
 
+// Validation Middleware for lifestyle assessment inputs
+function validateTwinAssess(req, res, next) {
+  const inputs = req.body;
+  if (!inputs || typeof inputs !== 'object') {
+    return res.status(400).json({ error: 'Missing or invalid lifestyle inputs.' });
+  }
+  const { transport, food, energy, shopping } = inputs;
+  if (!transport || typeof transport !== 'object' || !transport.type) {
+    return res.status(400).json({ error: 'Missing or invalid transport lifestyle input.' });
+  }
+  if (transport.dailyKm !== undefined && (typeof transport.dailyKm !== 'number' || transport.dailyKm < 0)) {
+    return res.status(400).json({ error: 'Transport dailyKm must be a non-negative number.' });
+  }
+  if (!food || typeof food !== 'object' || !food.diet) {
+    return res.status(400).json({ error: 'Missing or invalid food diet input.' });
+  }
+  if (!energy || typeof energy !== 'object') {
+    return res.status(400).json({ error: 'Missing or invalid energy utility input.' });
+  }
+  if (energy.kwh !== undefined && (typeof energy.kwh !== 'number' || energy.kwh < 0)) {
+    return res.status(400).json({ error: 'Energy monthly kWh must be a non-negative number.' });
+  }
+  if (!shopping || typeof shopping !== 'object' || !shopping.frequency) {
+    return res.status(400).json({ error: 'Missing or invalid shopping consumption input.' });
+  }
+  
+  // Fill default values for travel and waste to avoid TypeErrors
+  if (!inputs.travel || typeof inputs.travel !== 'object') {
+    inputs.travel = { shortFlights: 0, longFlights: 0 };
+  } else {
+    if (inputs.travel.shortFlights !== undefined && (typeof inputs.travel.shortFlights !== 'number' || inputs.travel.shortFlights < 0)) {
+      return res.status(400).json({ error: 'Short flights must be a non-negative number.' });
+    }
+    if (inputs.travel.longFlights !== undefined && (typeof inputs.travel.longFlights !== 'number' || inputs.travel.longFlights < 0)) {
+      return res.status(400).json({ error: 'Long flights must be a non-negative number.' });
+    }
+  }
+  if (!inputs.waste || typeof inputs.waste !== 'object') {
+    inputs.waste = { bagsPerWeek: 2 };
+  } else {
+    if (inputs.waste.bagsPerWeek !== undefined && (typeof inputs.waste.bagsPerWeek !== 'number' || inputs.waste.bagsPerWeek < 0)) {
+      return res.status(400).json({ error: 'Waste bags per week must be a non-negative number.' });
+    }
+  }
+  next();
+}
+
+// Validation Middleware for climate coach chat inputs
+function validateCoachChat(req, res, next) {
+  const { message } = req.body;
+  if (!message || typeof message !== 'string' || message.trim() === '') {
+    return res.status(400).json({ error: 'A valid chat message string is required.' });
+  }
+  next();
+}
+
+// Validation Middleware for receipt upload inputs
+function validateReceiptUpload(req, res, next) {
+  const { receiptData, imageBase64 } = req.body;
+  if (!receiptData && !imageBase64) {
+    return res.status(400).json({ error: 'Missing receipt scan payload (either receiptData or imageBase64 is required).' });
+  }
+  if (receiptData) {
+    if (typeof receiptData !== 'object') {
+      return res.status(400).json({ error: 'receiptData must be a valid object.' });
+    }
+    const { category, amount } = receiptData;
+    if (!category || typeof category !== 'string') {
+      return res.status(400).json({ error: 'Receipt category is required and must be a string.' });
+    }
+    const validCategories = ['fuel', 'grocery', 'utility', 'shopping'];
+    if (!validCategories.includes(category.toLowerCase())) {
+      return res.status(400).json({ error: 'Invalid receipt category. Must be one of: fuel, grocery, utility, shopping.' });
+    }
+    if (amount === undefined || typeof amount !== 'number' || amount <= 0) {
+      return res.status(400).json({ error: 'Receipt amount is required and must be a positive number.' });
+    }
+  }
+  next();
+}
+
+// Validation Middleware for missions completion inputs
+function validateMissionComplete(req, res, next) {
+  const { missionId } = req.body;
+  if (missionId === undefined || !Number.isInteger(Number(missionId))) {
+    return res.status(400).json({ error: 'A valid integer mission ID is required.' });
+  }
+  req.body.missionId = Number(missionId);
+  next();
+}
+
+// Validation Middleware for joining challenges
+function validateChallengeJoin(req, res, next) {
+  const { challengeId } = req.body;
+  if (challengeId === undefined || !Number.isInteger(Number(challengeId))) {
+    return res.status(400).json({ error: 'A valid integer challenge ID is required.' });
+  }
+  req.body.challengeId = Number(challengeId);
+  next();
+}
+
+
 // Database initialized lazily via middleware
 
 // Middleware: Authenticate Token
@@ -292,7 +394,7 @@ function calculateSustainabilityScore(footprint) {
 }
 
 // Digital Twin: Submit assessment
-app.post('/api/twin/assess', authenticateToken, async (req, res) => {
+app.post('/api/twin/assess', authenticateToken, validateTwinAssess, async (req, res) => {
   try {
     const inputs = req.body;
     if (!inputs.transport || !inputs.food || !inputs.energy || !inputs.shopping) {
@@ -403,7 +505,7 @@ app.get('/api/twin', authenticateToken, async (req, res) => {
 });
 
 // AI Climate Coach
-app.post('/api/coach/chat', authenticateToken, async (req, res) => {
+app.post('/api/coach/chat', authenticateToken, validateCoachChat, async (req, res) => {
   try {
     const { message, history, openRouterKey, model, mockMode } = req.body;
     
@@ -536,7 +638,7 @@ Tell me more about your daily habits so we can fine-tune your Twin.`;
 }
 
 // Emissions Logging & Receipts
-app.post('/api/receipt/upload', authenticateToken, async (req, res) => {
+app.post('/api/receipt/upload', authenticateToken, validateReceiptUpload, async (req, res) => {
   try {
     const { receiptData, imageBase64 } = req.body;
     let parsedData = null;
@@ -676,6 +778,7 @@ app.get('/api/missions', authenticateToken, async (req, res) => {
       completed: completedIds.includes(m.id)
     }));
 
+    res.setHeader('Cache-Control', 'private, max-age=60');
     res.json(missions);
   } catch (err) {
     console.error(err);
@@ -683,7 +786,7 @@ app.get('/api/missions', authenticateToken, async (req, res) => {
   }
 });
 
-app.post('/api/missions/complete', authenticateToken, async (req, res) => {
+app.post('/api/missions/complete', authenticateToken, validateMissionComplete, async (req, res) => {
   try {
     const { missionId } = req.body;
     if (!missionId) return res.status(400).json({ error: 'Mission ID required' });
@@ -747,6 +850,7 @@ app.get('/api/challenges', authenticateToken, async (req, res) => {
       progress: joinedMap.get(c.id) || 0
     }));
 
+    res.setHeader('Cache-Control', 'private, max-age=60');
     res.json(challenges);
   } catch (err) {
     console.error(err);
@@ -754,7 +858,7 @@ app.get('/api/challenges', authenticateToken, async (req, res) => {
   }
 });
 
-app.post('/api/challenges/join', authenticateToken, async (req, res) => {
+app.post('/api/challenges/join', authenticateToken, validateChallengeJoin, async (req, res) => {
   try {
     const { challengeId } = req.body;
     if (!challengeId) return res.status(400).json({ error: 'Challenge ID required' });
