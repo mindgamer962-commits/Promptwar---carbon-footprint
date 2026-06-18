@@ -34,7 +34,7 @@ async function ensureDbInitialized() {
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
+const JWT_SECRET = process.env.JWT_SECRET || 'carboniq-default-jwt-secret-key-for-evaluation';
 
 // ==================== SECURITY MIDDLEWARE ====================
 // Helmet helps secure Express apps by setting various HTTP headers
