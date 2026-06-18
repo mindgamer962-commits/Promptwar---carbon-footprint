@@ -22,7 +22,7 @@ const mockMissions: Mission[] = [
   { id: 2, title: 'Meat-free day', description: 'Eat only vegetarian meals.', points: 100, co2_savings: 3.1, category: 'food', completed: true }
 ];
 
-global.fetch = vi.fn();
+globalThis.fetch = vi.fn() as any;
 
 describe('MissionsPanel Component', () => {
   beforeEach(() => {
@@ -30,7 +30,7 @@ describe('MissionsPanel Component', () => {
   });
 
   it('renders loaded missions list and completed statuses', async () => {
-    (global.fetch as any).mockResolvedValueOnce({
+    (globalThis.fetch as any).mockResolvedValueOnce({
       ok: true,
       json: async () => mockMissions,
     });
@@ -54,13 +54,13 @@ describe('MissionsPanel Component', () => {
     const handleMissionCompleted = vi.fn();
     
     // Load call
-    (global.fetch as any).mockResolvedValueOnce({
+    (globalThis.fetch as any).mockResolvedValueOnce({
       ok: true,
       json: async () => mockMissions,
     });
     
     // Complete call
-    (global.fetch as any).mockResolvedValueOnce({
+    (globalThis.fetch as any).mockResolvedValueOnce({
       ok: true,
       json: async () => ({ success: true, points_earned: 50, co2_reduced: 1.2 }),
     });
@@ -75,7 +75,7 @@ describe('MissionsPanel Component', () => {
     fireEvent.click(completeBtn);
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith('/api/missions/complete', expect.objectContaining({
+      expect(globalThis.fetch).toHaveBeenCalledWith('/api/missions/complete', expect.objectContaining({
         method: 'POST',
       }));
       expect(handleMissionCompleted).toHaveBeenCalledTimes(1);
