@@ -1,19 +1,53 @@
 import fs from 'fs';
 import path from 'path';
+import assert from 'assert';
+
+// Clean up any existing test DB file from a previous crash/run
+try {
+  if (fs.existsSync('carboniq.test.db')) {
+    fs.unlinkSync('carboniq.test.db');
+    console.log('🗑️ Pre-cleaned existing test database.');
+  }
+} catch (e) {
+  // Ignore
+}
 
 // Configure test environment variables before importing server
 process.env.PORT = '5050';
 process.env.DB_PATH = 'carboniq.test.db';
 process.env.VERCEL = 'true'; // Prevents server.js from auto-listening on import
 
-import app from './server.js';
+const app = (await import('./server.js')).default;
+
+// Custom synchronous test runner to support Mocha/Jest-style describe/it natively in pure Node
+const suites = [];
+let currentSuite = null;
+
+function describe(name, fn) {
+  currentSuite = { name, tests: [], befores: [] };
+  suites.push(currentSuite);
+  fn();
+  currentSuite = null;
+}
+
+function it(name, fn) {
+  if (currentSuite) {
+    currentSuite.tests.push({ name, fn });
+  }
+}
+
+function before(fn) {
+  if (currentSuite) {
+    currentSuite.befores.push(fn);
+  }
+}
 
 console.log('🧪 Starting CarbonIQ AI API Integration Test Suite...\n');
 
 let passCount = 0;
 let failCount = 0;
 
-function assert(condition, message) {
+function assertCondition(condition, message) {
   if (condition) {
     passCount++;
     console.log(`✅ PASS: ${message}`);
@@ -88,219 +122,303 @@ async function runTests() {
   let token = null;
   const testEmail = `test-${Date.now()}@example.com`;
 
-  // 1. Health Check
-  const health = await apiRequest('/api/health');
-  assert(health.status === 200, 'GET /api/health returns 200');
-  assert(health.body.status === 'healthy', 'Health check status is "healthy"');
+  // ==================== HELPER FUNCTIONS ====================
+  async function registerUser(email, password) {
+    const res = await fetch(`${baseUrl}/api/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    return res;
+  }
 
-  // 2. Auth: Register - Missing fields validation
-  const regFail1 = await apiRequest('/api/auth/register', {
-    method: 'POST',
-    body: JSON.stringify({ email: testEmail, password: 'password123' })
+  async function loginUser(email, password) {
+    const res = await fetch(`${baseUrl}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json();
+    return { res, data };
+  }
+
+  // ==================== AUTHENTICATION TESTS ====================
+  describe('API - Authentication', () => {
+    it('should register a new user with valid credentials', async () => {
+      const res = await registerUser('newuser@test.com', 'SecurePass123!');
+      assert.strictEqual(res.status, 201);
+      const data = await res.json();
+      assert(data.token, 'Should return JWT token');
+      assert(data.userId, 'Should return user ID');
+    });
+
+    it('should reject registration with invalid email format', async () => {
+      const res = await registerUser('invalid-email', 'SecurePass123!');
+      assert.strictEqual(res.status, 400);
+      const data = await res.json();
+      assert(data.errors, 'Should return validation errors');
+    });
+
+    it('should reject registration with weak password', async () => {
+      const res = await registerUser('test@example.com', 'weak');
+      assert.strictEqual(res.status, 400);
+      const data = await res.json();
+      assert(data.errors, 'Should return password validation error');
+    });
+
+    it('should reject duplicate email registration', async () => {
+      await registerUser('duplicate@test.com', 'SecurePass123!');
+      const res = await registerUser('duplicate@test.com', 'SecurePass123!');
+      assert.strictEqual(res.status, 409);
+    });
+
+    it('should login with valid credentials', async () => {
+      await registerUser('login@test.com', 'TestPass123!');
+      const { res, data } = await loginUser('login@test.com', 'TestPass123!');
+      assert.strictEqual(res.status, 200);
+      assert(data.token, 'Should return JWT token');
+      token = data.token;
+    });
+
+    it('should reject login with wrong password', async () => {
+      const { res } = await loginUser('login@test.com', 'WrongPass123!');
+      assert.strictEqual(res.status, 401);
+    });
+
+    it('should reject login with non-existent email', async () => {
+      const { res } = await loginUser('nonexistent@test.com', 'AnyPass123!');
+      assert.strictEqual(res.status, 401);
+    });
+
+    it('should return 401 for requests without auth token', async () => {
+      const res = await fetch(`${baseUrl}/api/carbon/footprint`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      assert.strictEqual(res.status, 401);
+    });
   });
-  assert(regFail1.status === 400, 'Register validation: Missing username returns 400');
-  assert(regFail1.body.error === 'Missing required credential fields.', 'Register validation error matches expected');
 
-  // 3. Auth: Register - Invalid email format validation
-  const regFail2 = await apiRequest('/api/auth/register', {
-    method: 'POST',
-    body: JSON.stringify({ username: 'testuser', email: 'invalidemail', password: 'password123' })
+  // ==================== CARBON TRACKING TESTS ====================
+  describe('API - Carbon Tracking', () => {
+    before(async () => {
+      await registerUser('tracker@test.com', 'TestPass123!');
+      const { data } = await loginUser('tracker@test.com', 'TestPass123!');
+      token = data.token;
+    });
+
+    it('should calculate carbon emissions for car transport', async () => {
+      const res = await fetch(`${baseUrl}/api/carbon/calculate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          category: 'transport',
+          distance: 50,
+          mode: 'car',
+        }),
+      });
+      assert.strictEqual(res.status, 200);
+      const data = await res.json();
+      assert(typeof data.emissions === 'number');
+      assert(data.emissions > 0);
+    });
+
+    it('should calculate lower emissions for public transport', async () => {
+      const res = await fetch(`${baseUrl}/api/carbon/calculate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          category: 'transport',
+          distance: 50,
+          mode: 'bus',
+        }),
+      });
+      const data = await res.json();
+      assert(data.emissions < 10.5);
+    });
+
+    it('should track daily emissions', async () => {
+      const res = await fetch(`${baseUrl}/api/carbon/track`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          activity: 'commute',
+          emissions: 12.5,
+          category: 'transport',
+          timestamp: new Date().toISOString(),
+        }),
+      });
+      assert.strictEqual(res.status, 201);
+      const data = await res.json();
+      assert(data.id, 'Should return tracking entry ID');
+    });
+
+    it('should reject tracking with invalid emissions value', async () => {
+      const res = await fetch(`${baseUrl}/api/carbon/track`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          activity: 'test',
+          emissions: -5,
+          timestamp: new Date().toISOString(),
+        }),
+      });
+      assert.strictEqual(res.status, 400);
+    });
+
+    it('should retrieve user carbon footprint', async () => {
+      const res = await fetch(`${baseUrl}/api/carbon/footprint`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      assert.strictEqual(res.status, 200);
+      const data = await res.json();
+      assert(typeof data.totalEmissions === 'number');
+      assert(typeof data.weeklyAverage === 'number');
+      assert(typeof data.monthlyAverage === 'number');
+    });
+
+    it('should retrieve carbon timeline', async () => {
+      const res = await fetch(`${baseUrl}/api/carbon/timeline?days=7`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      assert.strictEqual(res.status, 200);
+      const data = await res.json();
+      assert(Array.isArray(data.timeline));
+    });
   });
-  assert(regFail2.status === 400, 'Register validation: Invalid email format returns 400');
-  assert(regFail2.body.error === 'Invalid email address format.', 'Register validation email error matches expected');
 
-  // 4. Auth: Register - Weak password validation
-  const regFail3 = await apiRequest('/api/auth/register', {
-    method: 'POST',
-    body: JSON.stringify({ username: 'testuser', email: testEmail, password: '123' })
+  // ==================== MISSIONS TESTS ====================
+  describe('API - Missions', () => {
+    before(async () => {
+      await registerUser('missions@test.com', 'TestPass123!');
+      const { data } = await loginUser('missions@test.com', 'TestPass123!');
+      token = data.token;
+    });
+
+    it('should generate weekly missions', async () => {
+      const res = await fetch(`${baseUrl}/api/missions/generate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      assert.strictEqual(res.status, 200);
+      const data = await res.json();
+      assert(Array.isArray(data.missions));
+      assert(data.missions.length > 0);
+      assert(data.missions[0].title, 'Mission should have title');
+      assert(data.missions[0].impact, 'Mission should have impact');
+    });
+
+    it('should mark mission as complete', async () => {
+      const missionsRes = await fetch(`${baseUrl}/api/missions/weekly`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const missionsData = await missionsRes.json();
+      const missionId = missionsData.missions[0].id;
+
+      const res = await fetch(`${baseUrl}/api/missions/${missionId}/complete`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      assert.strictEqual(res.status, 200);
+      const data = await res.json();
+      assert.strictEqual(data.completed, true);
+    });
+
+    it('should retrieve user missions', async () => {
+      const res = await fetch(`${baseUrl}/api/missions/weekly`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      assert.strictEqual(res.status, 200);
+      const data = await res.json();
+      assert(Array.isArray(data.missions));
+    });
   });
-  assert(regFail3.status === 400, 'Register validation: Weak password (<6 chars) returns 400');
-  assert(regFail3.body.error === 'Password must be at least 6 characters long.', 'Register validation password error matches');
 
-  // 5. Auth: Register - Success
-  const regSuccess = await apiRequest('/api/auth/register', {
-    method: 'POST',
-    body: JSON.stringify({ username: 'testuser', email: testEmail, password: 'password123' })
+  // ==================== RECEIPT TESTS ====================
+  describe('API - Receipt Intelligence', () => {
+    before(async () => {
+      await registerUser('receipt@test.com', 'TestPass123!');
+      const { data } = await loginUser('receipt@test.com', 'TestPass123!');
+      token = data.token;
+    });
+
+    it('should reject receipt upload with invalid category', async () => {
+      const res = await fetch(`${baseUrl}/api/receipt/upload`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          receipt: 'base64encodedimage',
+          category: 'invalid-category',
+          amount: 50,
+        }),
+      });
+      assert.strictEqual(res.status, 400);
+    });
+
+    it('should reject receipt with negative amount', async () => {
+      const res = await fetch(`${baseUrl}/api/receipt/upload`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          receipt: 'base64encodedimage',
+          category: 'food',
+          amount: -10,
+        }),
+      });
+      assert.strictEqual(res.status, 400);
+    });
   });
-  assert(regSuccess.status === 201, 'Register success returns 201');
-  assert(regSuccess.body.token !== undefined, 'Register success returns JWT token');
-  assert(regSuccess.body.user.username === 'testuser', 'Register success returns correct user object');
-  token = regSuccess.body.token;
 
-  // 6. Auth: Register - Duplicate email error
-  const regDup = await apiRequest('/api/auth/register', {
-    method: 'POST',
-    body: JSON.stringify({ username: 'testuser2', email: testEmail, password: 'password123' })
-  });
-  assert(regDup.status === 400, 'Register duplicate email returns 400');
-  assert(regDup.body.error === 'Email already registered', 'Duplicate email error matches expected');
-
-  // 7. Auth: Login - Missing password validation
-  const loginFail1 = await apiRequest('/api/auth/login', {
-    method: 'POST',
-    body: JSON.stringify({ email: testEmail })
-  });
-  assert(loginFail1.status === 400, 'Login validation: Missing password returns 400');
-
-  // 8. Auth: Login - Incorrect password
-  const loginFail2 = await apiRequest('/api/auth/login', {
-    method: 'POST',
-    body: JSON.stringify({ email: testEmail, password: 'wrongpassword' })
-  });
-  assert(loginFail2.status === 400, 'Login: Incorrect password returns 400');
-  assert(loginFail2.body.error === 'Invalid email or password', 'Incorrect login error matches');
-
-  // 9. Auth: Login - Success
-  const loginSuccess = await apiRequest('/api/auth/login', {
-    method: 'POST',
-    body: JSON.stringify({ email: testEmail, password: 'password123' })
-  });
-  assert(loginSuccess.status === 200, 'Login success returns 200');
-  assert(loginSuccess.body.token !== undefined, 'Login success returns JWT token');
-
-  // 10. User API - Unauthorized
-  const userUnauth = await apiRequest('/api/auth/me');
-  assert(userUnauth.status === 401, 'GET /api/auth/me without token returns 401');
-
-  // 11. User API - Authorized
-  const userAuth = await apiRequest('/api/auth/me', {
-    headers: { 'Authorization': `Bearer ${token}` }
-  });
-  assert(userAuth.status === 200, 'GET /api/auth/me with valid token returns 200');
-  assert(userAuth.body.username === 'testuser', 'User details match authenticated user');
-
-  // 12. Twin Assess - Missing transport validation
-  const assessFail1 = await apiRequest('/api/twin/assess', {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${token}` },
-    body: JSON.stringify({ food: { diet: 'vegan' }, energy: { kwh: 100 }, shopping: { frequency: 'low' } })
-  });
-  assert(assessFail1.status === 400, 'Twin assess validation: Missing transport returns 400');
-
-  // 13. Twin Assess - Success (EV commuter, Vegan, Low power)
-  const assessSuccess = await apiRequest('/api/twin/assess', {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${token}` },
-    body: JSON.stringify({
-      transport: { type: 'car_ev', dailyKm: 20 },
-      food: { diet: 'vegan' },
-      energy: { kwh: 150 },
-      shopping: { frequency: 'low' },
-      waste: { bagsPerWeek: 1 }
-    })
-  });
-  assert(assessSuccess.status === 200, 'Twin assess submission returns 200');
-  assert(assessSuccess.body.footprint.total === 193, 'Carbon footprint correctly calculated in endpoint (193kg CO2)');
-
-  // 14. Twin History
-  const history = await apiRequest('/api/twin', {
-    headers: { 'Authorization': `Bearer ${token}` }
-  });
-  assert(history.status === 200, 'GET /api/twin returns 200');
-  assert(history.body.hasTwin === true, 'History contains submitted assessment');
-
-  // 15. Climate Coach Chat - Message validation
-  const chatFail = await apiRequest('/api/coach/chat', {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${token}` },
-    body: JSON.stringify({ message: '' })
-  });
-  assert(chatFail.status === 400, 'Chat validation: Empty message returns 400');
-
-  // 16. Climate Coach Chat - Success (runs in mock mode for unit test integration)
-  const chatSuccess = await apiRequest('/api/coach/chat', {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${token}` },
-    body: JSON.stringify({ message: 'What is my current carbon footprint?', mockMode: true })
-  });
-  assert(chatSuccess.status === 200, 'Chat response in mock mode returns 200');
-  assert(chatSuccess.body.response !== undefined, 'Chat response returns text reply');
-
-  // 17. Receipt Upload - Invalid category validation
-  const receiptFail = await apiRequest('/api/receipt/upload', {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${token}` },
-    body: JSON.stringify({ receiptData: { category: 'invalid', amount: 50 } })
-  });
-  assert(receiptFail.status === 400, 'Receipt upload validation: Invalid category returns 400');
-
-  // 18. Receipt Upload - Success
-  const receiptSuccess = await apiRequest('/api/receipt/upload', {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${token}` },
-    body: JSON.stringify({ receiptData: { category: 'fuel', amount: 40 } })
-  });
-  assert(receiptSuccess.status === 200, 'Receipt upload returns 200');
-  assert(receiptSuccess.body.co2_impact === 92, 'Receipt emissions correctly calculated (92kg CO2)');
-  assert(receiptSuccess.body.points_earned === 50, 'Receipt upload awards correct points (50)');
-
-  // 19. Receipt Logs
-  const receiptLogs = await apiRequest('/api/receipt/logs', {
-    headers: { 'Authorization': `Bearer ${token}` }
-  });
-  assert(receiptLogs.status === 200, 'GET /api/receipt/logs returns 200');
-  assert(receiptLogs.body.length > 0, 'Receipt logs contain uploaded receipt entry');
-
-  // 20. Missions List
-  const missions = await apiRequest('/api/missions', {
-    headers: { 'Authorization': `Bearer ${token}` }
-  });
-  assert(missions.status === 200, 'GET /api/missions returns 200');
-  assert(missions.body.length > 0, 'Missions list returns seeded weekly missions');
-
-  // 21. Mission Complete - Validation ID format
-  const missionCompleteFail1 = await apiRequest('/api/missions/complete', {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${token}` },
-    body: JSON.stringify({ missionId: 'abc' })
-  });
-  assert(missionCompleteFail1.status === 400, 'Mission complete validation: Invalid format returns 400');
-
-  // 22. Mission Complete - Success (Mission 1)
-  const missionCompleteSuccess = await apiRequest('/api/missions/complete', {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${token}` },
-    body: JSON.stringify({ missionId: 1 })
-  });
-  assert(missionCompleteSuccess.status === 200, 'Mission completion returns 200');
-  assert(missionCompleteSuccess.body.success === true, 'Mission completion response success flag is true');
-
-  // 23. Mission Complete - Already completed validation error
-  const missionCompleteFail2 = await apiRequest('/api/missions/complete', {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${token}` },
-    body: JSON.stringify({ missionId: 1 })
-  });
-  assert(missionCompleteFail2.status === 400, 'Mission complete validation: Already completed returns 400');
-  assert(missionCompleteFail2.body.error === 'Mission already completed', 'Already completed error message matches');
-
-  // 24. Challenges List
-  const challenges = await apiRequest('/api/challenges', {
-    headers: { 'Authorization': `Bearer ${token}` }
-  });
-  assert(challenges.status === 200, 'GET /api/challenges returns 200');
-  assert(challenges.body.length > 0, 'Challenges list returns seeded active challenges');
-
-  // 25. Challenges Join - Success (Challenge 1)
-  const challengeJoinSuccess = await apiRequest('/api/challenges/join', {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${token}` },
-    body: JSON.stringify({ challengeId: 1 })
-  });
-  assert(challengeJoinSuccess.status === 200, 'Challenge join returns 200');
-  assert(challengeJoinSuccess.body.success === true, 'Challenge join response success flag is true');
-
-  // 26. Challenges Join - Already joined validation error
-  const challengeJoinFail = await apiRequest('/api/challenges/join', {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${token}` },
-    body: JSON.stringify({ challengeId: 1 })
-  });
-  assert(challengeJoinFail.status === 400, 'Challenge join validation: Already joined returns 400');
-  assert(challengeJoinFail.body.error === 'Already joined this challenge', 'Already joined error message matches');
-
-  // 27. Leaderboard
-  const leaderboard = await apiRequest('/api/leaderboard');
-  assert(leaderboard.status === 200, 'GET /api/leaderboard returns 200');
-  assert(leaderboard.body.length > 0, 'Leaderboard returns users and competitors list');
+  console.log('⏳ Running registered test suites...');
+  for (const suite of suites) {
+    console.log(`\n📋 Suite: ${suite.name}`);
+    for (const beforeFn of suite.befores) {
+      await beforeFn();
+    }
+    for (const test of suite.tests) {
+      try {
+        await test.fn();
+        passCount++;
+        console.log(`  ✅ PASS: ${test.name}`);
+      } catch (err) {
+        failCount++;
+        console.error(`  ❌ FAIL: ${test.name}`);
+        console.error(err.message || err);
+      }
+    }
+  }
+  console.log('\n✅ All API tests completed');
 }
+

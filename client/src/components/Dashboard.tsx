@@ -179,7 +179,7 @@ export default function Dashboard({ token, user, onLogout }: DashboardProps) {
       </aside>
 
       {/* Main Body workspace */}
-      <main className="flex-1 overflow-y-auto px-6 md:px-10 py-10 z-10 max-w-7xl mx-auto w-full">
+      <main className="flex-1 overflow-y-auto px-6 md:px-10 py-10 z-10 max-w-7xl mx-auto w-full" role="main" aria-label="Carbon Dashboard">
         {/* Mobile Navbar */}
         <div className="flex md:hidden items-center justify-between border-b border-white/5 pb-4 mb-8">
           <div className="flex items-center gap-2">
@@ -224,7 +224,8 @@ export default function Dashboard({ token, user, onLogout }: DashboardProps) {
                 {/* Header Welcome Dashboard */}
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                   <div>
-                    <h1 className="text-3xl font-extrabold tracking-tight text-white font-display">Command Center</h1>
+                    <h1 className="text-3xl font-extrabold tracking-tight text-white font-display" id="dashboard-title">Command Center</h1>
+                    <div role="status" aria-live="polite" className="sr-only">Carbon Dashboard is ready.</div>
                     <p className="text-gray-400 text-sm mt-1">Real-time status of your Virtual Carbon Twin ecosystem.</p>
                   </div>
                   <div className="flex items-center gap-4">
@@ -244,10 +245,17 @@ export default function Dashboard({ token, user, onLogout }: DashboardProps) {
                   <div className="glass-panel p-6 rounded-3xl border border-white/5 flex flex-col justify-between h-[300px]">
                     <div>
                       <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">CarbonIQ Index</span>
-                      <h3 className="text-lg font-bold text-white mt-1 font-display">Sustainability Score</h3>
+                      <h2 className="text-lg font-bold text-white mt-1 font-display">Sustainability Score</h2>
                     </div>
 
-                    <div className="relative flex justify-center items-center py-4">
+                    <div 
+                      className="relative flex justify-center items-center py-4"
+                      role="progressbar"
+                      aria-valuenow={score}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-label="Sustainability score"
+                    >
                       {/* CSS Circular SVG */}
                       <svg className="w-36 h-36" viewBox="0 0 100 100">
                         <circle cx="50" cy="50" r="40" fill="transparent" stroke="rgba(255,255,255,0.03)" strokeWidth="6" />
@@ -276,7 +284,7 @@ export default function Dashboard({ token, user, onLogout }: DashboardProps) {
                   <div className="glass-panel p-6 rounded-3xl border border-white/5 h-[300px] flex flex-col justify-between">
                     <div>
                       <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Emissions Breakdown</span>
-                      <h3 className="text-lg font-bold text-white mt-1 font-display">Source Distribution</h3>
+                      <h2 className="text-lg font-bold text-white mt-1 font-display">Carbon Footprint</h2>
                     </div>
 
                     <div className="flex-1 min-h-[140px] relative">
@@ -318,7 +326,7 @@ export default function Dashboard({ token, user, onLogout }: DashboardProps) {
                     
                     <div>
                       <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Earth Impact Visualizer</span>
-                      <h3 className="text-lg font-bold text-white mt-1 font-display">Resource Overuse</h3>
+                      <h2 className="text-lg font-bold text-white mt-1 font-display">Resource Overuse</h2>
                     </div>
 
                     <div className="flex items-center justify-around py-4">
@@ -405,7 +413,7 @@ export default function Dashboard({ token, user, onLogout }: DashboardProps) {
                       <h3 className="text-base font-bold text-white mt-1 font-display">Recent Emissions</h3>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto space-y-3 pr-1 py-4 my-2 border-t border-b border-white/5">
+                    <div className="flex-1 overflow-y-auto space-y-3 pr-1 py-4 my-2 border-t border-b border-white/5" aria-labelledby="recent-activity-logs">
                       {recentLogs.length > 0 ? (
                         recentLogs.map((log) => (
                           <div key={log.id} className="flex justify-between items-center text-xs">

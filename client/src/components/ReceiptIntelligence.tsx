@@ -165,12 +165,11 @@ export default function ReceiptIntelligence({ token, onLogged }: ReceiptIntellig
   };
 
   return (
-    <div className="grid lg:grid-cols-3 gap-8 select-none">
-      {/* File Dropper & Template Section */}
+    <div className="grid lg:grid-cols-3 gap-8 select-none" aria-labelledby="receipt-intelligence-heading">
       <div className="lg:col-span-2 space-y-6">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-white font-display">Receipt Intelligence</h1>
-          <p className="text-gray-400 text-sm mt-1">Upload grocery receipts, utility bills, or fuel stubs to audit their carbon footprint.</p>
+          <h1 id="receipt-intelligence-heading" className="text-3xl font-extrabold tracking-tight text-white font-display">Receipt Intelligence</h1>
+          <p className="text-gray-400 text-sm mt-1" id="receipt-intelligence-description">Upload grocery receipts, utility bills, or fuel stubs to audit their carbon footprint.</p>
         </div>
 
         {/* Drag & Drop Card */}
@@ -181,7 +180,8 @@ export default function ReceiptIntelligence({ token, onLogged }: ReceiptIntellig
           onDrop={handleDrop}
           tabIndex={0}
           role="region"
-          aria-label="Receipt drag and drop upload zone"
+          aria-labelledby="receipt-intelligence-heading"
+          aria-describedby="receipt-intelligence-description"
           className={`glass-panel rounded-3xl p-10 relative overflow-hidden border border-dashed flex flex-col items-center justify-center min-h-[350px] transition-all ${
             dragActive ? 'border-primary bg-primary/5' : 'border-white/10'
           }`}
@@ -211,7 +211,7 @@ export default function ReceiptIntelligence({ token, onLogged }: ReceiptIntellig
               </div>
               
               <h3 className="text-lg font-bold font-display text-white mb-2">Drag and drop receipt image</h3>
-              <p className="text-xs text-gray-400 mb-6 text-center max-w-sm">Supports Utility Bills, Grocery items, and Fuel stubs (JPG, PNG, PDF up to 5MB).</p>
+              <p className="text-xs text-gray-400 mb-6 text-center max-w-sm" id="file-upload-instructions">Supports Utility Bills, Grocery items, and Fuel stubs (JPG, PNG, PDF up to 5MB).</p>
 
               <label htmlFor="receipt-file-input" className="cursor-pointer px-5 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-xl text-xs font-semibold transition-all">
                 Browse Files
@@ -221,6 +221,7 @@ export default function ReceiptIntelligence({ token, onLogged }: ReceiptIntellig
                   className="hidden"
                   accept="image/*,application/pdf"
                   aria-label="Upload receipt image or utility bill file"
+                  aria-describedby="file-upload-instructions"
                   onChange={handleChange}
                 />
               </label>
@@ -266,6 +267,8 @@ export default function ReceiptIntelligence({ token, onLogged }: ReceiptIntellig
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
                 className="space-y-6"
+                aria-live="polite"
+                aria-atomic="true"
               >
                 <div className="flex items-center gap-3 p-4 rounded-2xl bg-success/5 border border-success/20 text-success text-xs font-semibold">
                   <CheckCircle2 size={18} />

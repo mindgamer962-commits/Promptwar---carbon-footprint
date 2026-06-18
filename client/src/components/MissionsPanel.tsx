@@ -4,16 +4,40 @@ import { Target, CheckCircle, Flame } from 'lucide-react';
 import type { Mission } from '../types';
 
 interface MissionsPanelProps {
-  token: string;
-  onMissionCompleted: () => void;
+  token?: string;
+  onMissionCompleted?: () => void;
+  missions?: any[];
 }
 
-export default function MissionsPanel({ token, onMissionCompleted }: MissionsPanelProps) {
-  const [missions, setMissions] = useState<Mission[]>([]);
-  const [loading, setLoading] = useState(true);
+export default function MissionsPanel({ token, onMissionCompleted, missions: initialMissions }: MissionsPanelProps) {
+  const [missions, setMissions] = useState<any[]>(() => {
+    if (initialMissions) {
+      return initialMissions.map((m: any) => {
+        let co2 = 2.0;
+        if (m.impact) {
+          const match = m.impact.match(/([\d.]+)\s*kg/);
+          if (match) co2 = parseFloat(match[1]);
+        }
+        return {
+          id: typeof m.id === 'string' ? parseInt(m.id, 10) : m.id,
+          title: m.title,
+          description: m.description,
+          points: m.points || 100,
+          co2_savings: m.co2_savings !== undefined ? m.co2_savings : co2,
+          category: m.category || 'transport',
+          completed: m.completed || false,
+        };
+      });
+    }
+    return [];
+  });
+  const [loading, setLoading] = useState(!initialMissions);
   const [error, setError] = useState('');
+  const [selectedMission, setSelectedMission] = useState<string | null>(null);
+  const [completedMissions, setCompletedMissions] = useState<Set<string>>(new Set());
 
   const fetchMissions = async () => {
+    if (initialMissions) return;
     setLoading(true);
     try {
       const res = await fetch('/api/missions', {
@@ -30,8 +54,10 @@ export default function MissionsPanel({ token, onMissionCompleted }: MissionsPan
   };
 
   useEffect(() => {
-    fetchMissions();
-  }, []);
+    if (!initialMissions) {
+      fetchMissions();
+    }
+  }, [initialMissions]);
 
   const completeMission = async (missionId: number) => {
     try {
@@ -54,11 +80,37 @@ export default function MissionsPanel({ token, onMissionCompleted }: MissionsPan
         prev.map(m => m.id === missionId ? { ...m, completed: true } : m)
       );
       
-      onMissionCompleted(); // Trigger score/points refresh in parent
+      if (onMissionCompleted) {
+        onMissionCompleted(); // Trigger score/points refresh in parent
+      }
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : 'Unknown error';
       setError(errMsg);
     }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const buttons = Array.from(document.querySelectorAll('button[aria-label^="Complete mission:"]')) as HTMLButtonElement[];
+      const currentIndex = buttons.indexOf(e.currentTarget);
+      if (currentIndex !== -1) {
+        const nextIndex = currentIndex + (e.key === 'ArrowDown' ? 1 : -1);
+        if (nextIndex >= 0 && nextIndex < buttons.length) {
+          buttons[nextIndex].focus();
+        }
+      }
+    }
+  };
+
+  const handleMissionSelect = (missionId: string) => {
+    setSelectedMission(missionId);
+  };
+
+  const handleMissionComplete = (missionId: string) => {
+    const newCompleted = new Set(completedMissions);
+    newCompleted.add(missionId);
+    setCompletedMissions(newCompleted);
   };
 
   const getCategoryIcon = (category: string) => {
@@ -75,7 +127,7 @@ export default function MissionsPanel({ token, onMissionCompleted }: MissionsPan
   return (
     <div className="grid lg:grid-cols-3 gap-8 select-none">
       {/* Active Missions list */}
-      <div className="lg:col-span-2 space-y-6">
+      <div className="lg:col-span-2 space-y-6" role="region" aria-label="Missions">
         <div>
           <h1 className="text-3xl font-extrabold tracking-tight text-white font-display">Weekly Missions</h1>
           <p className="text-gray-400 text-sm mt-1">Complete micro-sustainability tasks to optimize your twin profile and unlock rewards.</p>
@@ -105,10 +157,10 @@ export default function MissionsPanel({ token, onMissionCompleted }: MissionsPan
                     {getCategoryIcon(m.category)}
                   </div>
                   <div>
-                    <h3 className="text-base font-bold text-white font-display flex items-center gap-2">
+                    <h2 className="text-base font-bold text-white font-display flex items-center gap-2">
                       <span>{m.title}</span>
                       {m.completed && <CheckCircle size={14} className="text-success" />}
-                    </h3>
+                    </h2>
                     <p className="text-xs text-gray-400 mt-1">{m.description}</p>
                     <div className="flex gap-4 mt-3 text-[10px] text-gray-500 font-semibold uppercase tracking-wider">
                       <span>CO₂ offset: <span className="text-error font-bold">-{m.co2_savings} kg</span></span>
@@ -125,6 +177,7 @@ export default function MissionsPanel({ token, onMissionCompleted }: MissionsPan
                   ) : (
                     <button
                       onClick={() => completeMission(m.id)}
+                      onKeyDown={handleKeyDown}
                       aria-label={`Complete mission: ${m.title}`}
                       className="w-full sm:w-auto cursor-pointer px-5 py-2.5 bg-primary text-background font-bold rounded-xl text-xs hover:opacity-90 active:scale-95 transition-all"
                     >
@@ -145,7 +198,7 @@ export default function MissionsPanel({ token, onMissionCompleted }: MissionsPan
         <div className="space-y-6">
           <div className="flex items-center gap-2">
             <Target className="text-primary" size={18} />
-            <h3 className="text-base font-bold font-display text-white">Sprint progress</h3>
+            <h2 className="text-base font-bold font-display text-white">Sprint progress</h2>
           </div>
 
           <div className="space-y-4">
@@ -163,6 +216,10 @@ export default function MissionsPanel({ token, onMissionCompleted }: MissionsPan
               />
             </div>
 
+            <div role="status" aria-live="polite" className="sr-only">
+              {completedCount} of {missions.length} missions completed
+            </div>
+
             <div className="p-4 rounded-xl border border-white/5 bg-black/20 space-y-1">
               <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest block">Compounded Offset</span>
               <div className="text-xl font-bold font-display text-error">
@@ -175,7 +232,7 @@ export default function MissionsPanel({ token, onMissionCompleted }: MissionsPan
         <div className="p-4 rounded-2xl bg-white/5 border border-white/5 flex gap-3 items-center">
           <Flame className="text-orange-500 shrink-0" size={18} />
           <div>
-            <h4 className="text-xs font-bold text-white uppercase tracking-wider">Streak active</h4>
+            <h3 className="text-xs font-bold text-white uppercase tracking-wider">Streak active</h3>
             <p className="text-[10px] text-gray-400 leading-normal mt-0.5">Complete at least one mission every week to maintain your Streak Multiplier.</p>
           </div>
         </div>

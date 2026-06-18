@@ -2,12 +2,27 @@
   "name": "carboniq-monorepo",
   "version": "1.0.0",
   "private": true,
-  "description": "Monorepo root for CarbonIQ AI",
+  "description": "CarbonIQ AI - Digital Carbon Twin for Personal Sustainability",
   "scripts": {
     "postinstall": "npm install --prefix client && npm install --prefix server",
     "test": "npm test --prefix server && npm run test --prefix client",
     "test:server": "npm test --prefix server",
     "test:client": "npm run test --prefix client",
-    "build": "npm run build --prefix client"
+    "test:coverage": "npm run test:coverage --prefix client",
+    "build": "npm run build --prefix client && npm run build --prefix server",
+    "dev": "concurrently \"npm run dev --prefix client\" \"npm run dev --prefix server\"",
+    "dev:client": "npm run dev --prefix client",
+    "dev:server": "npm run dev --prefix server",
+    "lint": "eslint . --ext .ts,.tsx,.js,.jsx",
+    "lint:fix": "eslint . --ext .ts,.tsx,.js,.jsx --fix",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md}\"",
+    "type-check": "tsc --noEmit",
+    "ci": "npm run lint && npm run type-check && npm run test && npm run build"
+  },
+  "devDependencies": {
+    "eslint": "^8.50.0",
+    "prettier": "^3.0.0",
+    "concurrently": "^8.2.1"
   }
 }

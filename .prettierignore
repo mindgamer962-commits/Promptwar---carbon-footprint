@@ -1,0 +1,20 @@
+# Dependencies
+node_modules
+package-lock.json
+yarn.lock
+
+# Build outputs
+dist
+build
+.next
+
+# Environment
+.env
+.env.local
+
+# Database
+carboniq.db
+
+# OS
+.DS_Store
+Thumbs.db

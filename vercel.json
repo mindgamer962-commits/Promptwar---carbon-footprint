@@ -15,12 +15,34 @@
   ],
   "routes": [
     {
+      "src": "/api/auth/(.*)",
+      "dest": "server/server.js",
+      "headers": {
+        "cache-control": "no-store",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-xss-protection": "1; mode=block",
+        "strict-transport-security": "max-age=31536000; includeSubDomains"
+      }
+    },
+    {
       "src": "/api/(.*)",
-      "dest": "server/server.js"
+      "dest": "server/server.js",
+      "headers": {
+        "cache-control": "max-age=300, s-maxage=300",
+        "x-content-type-options": "nosniff"
+      }
+    },
+    {
+      "src": "^/assets/(.*)$",
+      "dest": "client/dist/assets/$1",
+      "headers": {
+        "cache-control": "public, max-age=31536000, immutable"
+      }
     },
     {
       "src": "/(.*)",
-      "dest": "client/$1",
+      "dest": "client/dist/$1",
       "headers": {
         "cache-control": "no-cache"
       }
