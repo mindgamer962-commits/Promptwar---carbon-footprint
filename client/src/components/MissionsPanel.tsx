@@ -55,8 +55,9 @@ export default function MissionsPanel({ token, onMissionCompleted }: MissionsPan
       );
       
       onMissionCompleted(); // Trigger score/points refresh in parent
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : 'Unknown error';
+      setError(errMsg);
     }
   };
 

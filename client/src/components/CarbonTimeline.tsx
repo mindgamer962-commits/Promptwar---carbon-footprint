@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Calendar, ChevronRight, TrendingDown, Target, Sparkles, Star } from 'lucide-react';
+import { TrendingDown, Star } from 'lucide-react';
 import { TwinData } from '../types';
 
 interface CarbonTimelineProps {

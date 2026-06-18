@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Users, Award, Shield, Zap, CheckCircle2, Trophy, Landmark } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Award, Zap, CheckCircle2, Trophy } from 'lucide-react';
 import { Challenge, LeaderboardUser } from '../types';
 
 interface CommunityChallengesProps {
@@ -36,13 +36,14 @@ export default function CommunityChallenges({ token, currentUserUsername }: Comm
       setChallenges(challengesData);
       
       // Update leaderboard list to flag current user
-      const flaggedLeaderboard = leaderboardData.map((u: any) => ({
+      const flaggedLeaderboard = leaderboardData.map((u: Omit<LeaderboardUser, 'isCurrentUser'>) => ({
         ...u,
         isCurrentUser: u.username.toLowerCase() === currentUserUsername.toLowerCase()
       }));
       setLeaderboard(flaggedLeaderboard);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : 'Unknown error';
+      setError(errMsg);
     } finally {
       setLoading(false);
     }
@@ -72,8 +73,9 @@ export default function CommunityChallenges({ token, currentUserUsername }: Comm
       setChallenges(prev => 
         prev.map(c => c.id === challengeId ? { ...c, joined: true, progress: 0 } : c)
       );
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : 'Unknown error';
+      setError(errMsg);
     }
   };
 
@@ -196,7 +198,7 @@ export default function CommunityChallenges({ token, currentUserUsername }: Comm
                   key={tab}
                   role="tab"
                   aria-selected={leaderboardTab === tab}
-                  onClick={() => setLeaderboardTab(tab as any)}
+                  onClick={() => setLeaderboardTab(tab as 'global' | 'college' | 'friends')}
                   className={`cursor-pointer pb-2 text-xs font-semibold uppercase tracking-wider transition-colors relative ${
                     leaderboardTab === tab ? 'text-primary font-bold' : 'text-gray-500 hover:text-white'
                   }`}

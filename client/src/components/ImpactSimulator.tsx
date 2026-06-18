@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Leaf, DollarSign, Award, Info, Sparkles } from 'lucide-react';
 import { TwinData } from '../types';

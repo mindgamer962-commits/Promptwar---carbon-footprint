@@ -7,18 +7,18 @@ import { TwinData } from '../types';
 // Mock framer-motion to avoid animation ticks in jsdom environment
 vi.mock('framer-motion', () => ({
   motion: {
-    div: ({ children, className, style, ...props }: any) => (
+    div: ({ children, className, style, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
       <div className={className} style={style} {...props}>
         {children}
       </div>
     ),
-    span: ({ children, className, ...props }: any) => (
+    span: ({ children, className, ...props }: React.HTMLAttributes<HTMLSpanElement>) => (
       <span className={className} {...props}>
         {children}
       </span>
     ),
   },
-  AnimatePresence: ({ children }: any) => <>{children}</>,
+  AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 // Mock lucide-react icons for simplicity

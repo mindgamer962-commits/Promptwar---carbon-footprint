@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Sparkles, AlertTriangle, Key, Cpu, HelpCircle, Sliders, Settings, Check, Leaf } from 'lucide-react';
+import { Send, Sparkles, Key, Cpu, HelpCircle, Sliders, Settings, Check, Leaf } from 'lucide-react';
 import { TwinData } from '../types';
 
 function parseMarkdown(text: string): React.ReactNode[] {
@@ -203,10 +203,11 @@ export default function AICoach({ token, twinData }: AICoachProps) {
       if (!res.ok) throw new Error(data.error || 'Coach error');
 
       setMessages(prev => [...prev, { role: 'assistant', content: data.response }]);
-    } catch (err: any) {
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : 'Unknown error';
       setMessages(prev => [...prev, { 
         role: 'assistant', 
-        content: `⚠️ Error connecting to AI Climate Coach: ${err.message}. Please check your connection or switch to Mock Mode in coach settings.` 
+        content: `⚠️ Error connecting to AI Climate Coach: ${errMsg}. Please check your connection or switch to Mock Mode in coach settings.` 
       }]);
     } finally {
       setSending(false);

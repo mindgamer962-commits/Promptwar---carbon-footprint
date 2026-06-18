@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Mail, Lock, User as UserIcon, ArrowRight, ShieldAlert, CheckCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { User } from '../types';
 
 interface AuthProps {
-  onAuthSuccess: (token: string, user: any) => void;
+  onAuthSuccess: (token: string, user: User) => void;
 }
 
 export default function Auth({ onAuthSuccess }: AuthProps) {
@@ -48,8 +49,9 @@ export default function Auth({ onAuthSuccess }: AuthProps) {
           setPassword('');
         }, 1500);
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : 'Unknown error';
+      setError(errMsg);
     } finally {
       setLoading(false);
     }

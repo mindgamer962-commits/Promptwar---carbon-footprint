@@ -15,6 +15,26 @@ export default defineConfig({
       }
     }
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('recharts') || id.includes('d3')) {
+              return 'vendor-recharts';
+            }
+            if (id.includes('lucide-react')) {
+              return 'vendor-lucide';
+            }
+            if (id.includes('tesseract.js') || id.includes('tesseract.js-core')) {
+              return 'vendor-tesseract';
+            }
+            return 'vendor-core';
+          }
+        }
+      }
+    }
+  },
   test: {
     globals: true,
     environment: 'jsdom',

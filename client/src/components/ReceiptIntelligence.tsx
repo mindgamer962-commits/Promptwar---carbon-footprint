@@ -9,10 +9,18 @@ interface ReceiptIntelligenceProps {
   onLogged: () => void;
 }
 
+interface ScannedResult {
+  category: string;
+  amount: number;
+  desc: string;
+  co2_impact: number;
+  points: number;
+}
+
 export default function ReceiptIntelligence({ token, onLogged }: ReceiptIntelligenceProps) {
   const [dragActive, setDragActive] = useState(false);
   const [scanning, setScanning] = useState(false);
-  const [scannedResult, setScannedResult] = useState<any>(null);
+  const [scannedResult, setScannedResult] = useState<ScannedResult | null>(null);
   const [error, setError] = useState('');
 
   // Sample templates to test instantly
@@ -147,8 +155,9 @@ export default function ReceiptIntelligence({ token, onLogged }: ReceiptIntellig
         });
         
         onLogged(); // Refresh dashboard logs
-      } catch (err: any) {
-        setError(err.message);
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : 'Unknown error';
+        setError(errMsg);
       } finally {
         setScanning(false);
       }

@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Shield, Sparkles, TrendingDown, Leaf, AlertTriangle, ChevronRight, Zap } from 'lucide-react';
+import { Sparkles, TrendingDown, Leaf, AlertTriangle, ChevronRight } from 'lucide-react';
 import { TwinData } from '../types';
 
 interface DigitalTwinProps {
@@ -30,9 +30,6 @@ export default function DigitalTwin({ twinData }: DigitalTwinProps) {
     if (s >= 50) return { label: 'Green Explorer', color: 'text-accent border-accent/20 bg-accent/5' };
     return { label: 'Carbon Beginner', color: 'text-error border-error/20 bg-error/5' };
   };
-
-  const currentTier = getScoreTier(currentSelfScore);
-  const sustainableTier = getScoreTier(sustainableSelfScore);
 
   return (
     <div className="space-y-8 select-none">

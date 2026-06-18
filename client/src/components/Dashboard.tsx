@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend 
+  PieChart, Pie, Cell, ResponsiveContainer, Tooltip 
 } from 'recharts';
 import { 
-  LayoutDashboard, Cpu, Leaf, Landmark, Zap, Calendar, Users, Target, LogOut, Shield, Award, ArrowUpRight, Globe, Compass 
+  LayoutDashboard, Cpu, Leaf, Landmark, Zap, Calendar, Users, Target, LogOut, Award, ArrowUpRight, Globe, Compass 
 } from 'lucide-react';
 import { User, TwinData, EmissionsLog } from '../types';
 
@@ -142,7 +142,7 @@ export default function Dashboard({ token, user, onLogout }: DashboardProps) {
                 role="tab"
                 aria-selected={activeView === item.id}
                 aria-controls={`panel-${item.id}`}
-                onClick={() => setActiveView(item.id as any)}
+                onClick={() => setActiveView(item.id as 'dashboard' | 'twin' | 'coach' | 'receipts' | 'simulator' | 'timeline' | 'challenges' | 'missions')}
                 className={`w-full flex items-center gap-3 cursor-pointer px-4 py-3 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all ${
                   activeView === item.id 
                     ? 'bg-primary/10 text-primary border border-primary/20 shadow-md shadow-primary/5' 
@@ -190,7 +190,7 @@ export default function Dashboard({ token, user, onLogout }: DashboardProps) {
             <select
               value={activeView}
               aria-label="Navigate Views"
-              onChange={(e) => setActiveView(e.target.value as any)}
+              onChange={(e) => setActiveView(e.target.value as 'dashboard' | 'twin' | 'coach' | 'receipts' | 'simulator' | 'timeline' | 'challenges' | 'missions')}
               className="bg-card border border-white/10 text-white rounded-lg px-2.5 py-1.5 text-xs font-semibold outline-none"
             >
               {sidebarItems.map(item => (
@@ -364,7 +364,7 @@ export default function Dashboard({ token, user, onLogout }: DashboardProps) {
                         ].map(shortcut => (
                           <button
                             key={shortcut.id}
-                            onClick={() => setActiveView(shortcut.id as any)}
+                            onClick={() => setActiveView(shortcut.id as 'dashboard' | 'twin' | 'coach' | 'receipts' | 'simulator' | 'timeline' | 'challenges' | 'missions')}
                             className="cursor-pointer p-4 rounded-2xl border border-white/5 bg-black/20 text-left hover:border-primary/20 hover:bg-primary/5 transition-all flex flex-col justify-between h-28"
                           >
                             <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 group-hover:text-primary">

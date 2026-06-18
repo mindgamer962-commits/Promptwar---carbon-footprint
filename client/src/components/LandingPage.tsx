@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { ArrowRight, Leaf, Shield, Cpu, Zap, Target, Users, Landmark, Globe } from 'lucide-react';
+import { ArrowRight, Leaf, Cpu, Zap, Target, Users, Landmark, Globe } from 'lucide-react';
 
 interface LandingPageProps {
   onStart: () => void;

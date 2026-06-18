@@ -1,6 +1,5 @@
 import pg from 'pg';
 import sqlite3 from 'sqlite3';
-import { existsSync } from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
 

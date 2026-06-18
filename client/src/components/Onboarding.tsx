@@ -103,8 +103,9 @@ export default function Onboarding({ token, onComplete }: OnboardingProps) {
       }
 
       onComplete();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : 'Unknown error';
+      setError(errMsg);
       setLoading(false);
     }
   };
